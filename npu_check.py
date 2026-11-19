@@ -6,6 +6,7 @@ CSV 字段: ts,node,chip,util,vec,hbm_used_gb,power_w,temp_c,health
 """
 import argparse
 import csv
+import json
 
 
 def load_rows(path):
@@ -29,6 +30,7 @@ def main():
     ap = argparse.ArgumentParser(description="NPU 峰值利用率巡检")
     ap.add_argument("csv_path")
     ap.add_argument("--top", type=int, default=5, help="打印前 N 张卡")
+    ap.add_argument("--json", action="store_true", help="输出 JSON，便于接入告警/报表")
     args = ap.parse_args()
 
     rows = load_rows(args.csv_path)
@@ -37,9 +39,22 @@ def main():
         print("没有有效数据")
         return
 
+    top = sorted(peak.items(), key=lambda kv: -kv[1])[: args.top]
+
+    if args.json:
+        print(json.dumps(
+            {
+                "samples": len(rows),
+                "cards": len(peak),
+                "top": [{"node": n, "chip": c, "util": u} for (n, c), u in top],
+            },
+            ensure_ascii=False,
+        ))
+        return
+
     print(f"样本 {len(rows)} 行，覆盖 {len(peak)} 张卡")
     print(f"{'node':20s} {'chip':>4s} {'util%':>7s}")
-    for (node, chip), util in sorted(peak.items(), key=lambda kv: -kv[1])[: args.top]:
+    for (node, chip), util in top:
         print(f"{node:20s} {chip:>4s} {util:>7.1f}")
 
 
